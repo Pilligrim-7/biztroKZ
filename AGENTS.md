@@ -132,3 +132,22 @@ Use `bun run <script>` unless the user requests otherwise.
 ## Additional Resources
 
 use the tools provided by context7 MCP to gather more information about libraries used in this project.
+
+## Cursor Cloud specific instructions
+
+Environment: single Next.js app (App Router). Package manager is Bun; local DB is a Turso/libSQL dev server. The startup update script installs Bun + Turso CLI and runs `bun install` (which triggers `prisma generate` via `postinstall`). A `.env` with dev/placeholder values already exists locally; external services (Google OAuth, Stripe, R2, Resend, PostHog) are NOT wired to real credentials.
+
+Start services each session (not in the update script):
+
+- Local DB: `turso dev --db-file local.db` (serves `local.db` at `http://127.0.0.1:8080`, matching `TURSO_DATABASE_URL`). Start this before migrations and before the app.
+- Migrations: `bun run prisma:migrate` (applies migrations to `local.db`). Run once the DB file exists.
+- Dev server: `bun run dev` (Next.js Turbopack on `http://localhost:3000`).
+
+Checks: `bun run lint` (eslint) and `bun run typecheck` (tsc).
+
+Non-obvious caveats:
+
+- `bun run typecheck` fails until content-collections types are generated at `.content-collections/generated`. These are generated automatically the first time `bun run dev` (or `bun run build`) runs. Start the dev server once, then typecheck passes.
+- Auth is Google OAuth only, sign-up is waitlist-gated, and a Stripe customer is created on sign-up — so real UI sign-up is not possible without real secrets. To exercise the authenticated dashboard locally, run `bun scripts/seed-dev.mjs` (requires the DB running and `.env` loaded, e.g. `set -a && . ./.env && set +a`). It seeds a waitlisted demo user + org (`demo@biztro.local`, org slug `demo-bistro`) and prints a signed `better-auth.session_token` cookie. Send that cookie with requests (e.g. `curl -H "Cookie: better-auth.session_token=..."`) to access `/dashboard`.
+- Public menus are served via subdomain rewrites in `src/proxy.ts`; locally use `http://<org-slug>.localhost:3000`.
+- `local.db*` and `.env` are gitignored and must not be committed.
